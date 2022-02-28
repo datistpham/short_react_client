@@ -1,7 +1,7 @@
 import { useQuery } from "@apollo/client"
 import Header from "./header/Header"
 import Main from "./main/Main"
-import { get5Video } from "../../src/api/get5_video"
+import { get5Video } from "../../src/graphql/get5_video"
 
 
 const T= ()=> {

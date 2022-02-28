@@ -19,7 +19,7 @@ import { useContext } from "react"
 import { MyContext } from "../context-provider/MyContext"
 import FrameComment from "../main/FrameComment"
 import { useLazyQuery } from "@apollo/client"
-import { GetUser } from "../../api/get_user"
+import { GetUser } from "../../graphql/get_user"
 
 const Video= (props)=> {
     // const { refVideo }= useContext(MyContext)

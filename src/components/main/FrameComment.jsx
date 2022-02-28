@@ -8,10 +8,14 @@ import { nanoid } from "nanoid"
 import CircularProgress from '@mui/material/CircularProgress'
 import { LikeComment } from "../../docs/f/interact_comment/like_comment"
 import { useMutation } from "@apollo/client"
-import { LikeCommentGraph } from "../../api/like_comment"
+import { LikeCommentGraph } from "../../graphql/like_comment"
+import { UndoLikeComment } from "../../graphql/undoLikeComment"
+import moment from "moment"
+import { loadmorecomment } from "../../api/load_more_comment"
 
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+export const sleep = ms => new Promise(r => setTimeout(r, ms));
 const FrameComment= (props)=> {
     
     return (
@@ -153,8 +157,12 @@ const ButtonSendComment= memo((props)=> {
 const Section3= (props)=> {
     const [state, setState]= useState(()=> ({
         data: [],
-        loading: true
+        loading: true,
+        loadingMore: true,
+        minItem: 0,
+        id: 0
     }))
+    const [dataMore, setDataMore]= useState(()=> [])
     useEffect(()=> {
         (async()=> {
             try {
@@ -163,7 +171,7 @@ const Section3= (props)=> {
                 })
                 const result= await res.data
                 await sleep(1500)
-                setState((prev)=> ({...prev, data: result, loading: false}))
+                setState((prev)=> ({...prev, data: result, loading: false, minItem: Math.min(...result.map(item=> item.like_)), id: result.find(item=> item.like_ === Math.min(...result.map(item=> item.like_))).id}))
         
             }catch(error) {
                 console.log(error)
@@ -171,6 +179,11 @@ const Section3= (props)=> {
         })()
     }, [props.id_comment])
 
+    const a= (e)=> {
+        if(Math.ceil(e.target.scrollHeight - e.target.scrollTop) === e.target.clientHeight) {
+            loadmorecomment(props.id_comment, state.minItem, setDataMore, dataMore, setState, state.id)
+        }   
+    }
     if(state.loading=== true) {
         return (
             <div className="loading" style={{width: '100%', marginLeft: 'auto', marginRight: 'auto', display: 'flex', justifyContent: 'center',alignItems: 'center'}}><CircularProgress color="secondary" /></div>
@@ -178,10 +191,15 @@ const Section3= (props)=> {
     }
     else {
         return (
-    
-            <div className="section3">
+            <div className="section3" onScroll={(e)=> a(e)}>
                 {
                     state.data.map(item=> <ItemSection3 key={nanoid()} {...item} data={props.data} comment={props.id_comment} />)
+                }
+                {
+                    state.loadingMore=== true ?<div className="loading" style={{width: '100%', marginLeft: 'auto', marginRight: 'auto', display: 'flex', justifyContent: 'center',alignItems: 'center'}}><CircularProgress color="secondary" /></div>
+                     : dataMore.map(item=> <ItemSection3 key={nanoid()} {...item} data={props.data} comment={props.id_comment} />)
+                }
+                {
                 }
             </div>
         )
@@ -189,7 +207,7 @@ const Section3= (props)=> {
     
 }
 
-const ItemSection3= (props)=> {
+const ItemSection3= memo((props)=> {
     return (
         <div className="item-section3">
             <AvatarComment avatar={props.avatar_comment}  />
@@ -197,7 +215,7 @@ const ItemSection3= (props)=> {
         </div>
 
     )
-}
+})
 
 const AvatarComment= (props)=> {
     return (
@@ -230,9 +248,11 @@ const NameComment= (props)=> {
     )
 }
 const TimeStamp= (props)=> {
+    
+    // console.log(moment().format("YYYY-MM-DD hh:mm:ss a"))
     return (
         <div className="timestamp">
-            &nbsp;{props.timestamp}
+            &nbsp;{moment(`${props.timestamp}`, 'YYYY-MM-DD hh:mm:ss a').fromNow()}
         </div>
     )
 }
@@ -248,7 +268,7 @@ const Container= (props)=> {
         <div className="container">
             <WrapperNameandTimestamp name_comment={props.name_comment} timestamp={props.timestamp} edited={props.edited} />
             <Content content={props.content} />
-            <WrapperLikeandDislike like={props.like_} id_comment={props.id_comment} data={props.data} />
+            <WrapperLikeandDislike like={props.like_} id_comment={props.id_comment} data={props.data} comment={props.comment} />
         </div>
     )
 }
@@ -263,7 +283,7 @@ const Content= (props)=> {
 const WrapperLikeandDislike= (props)=> {
     return (
         <div className="wrapper-like-and-dislike">
-            <CountLike like={props.like} id_comment={props.id_comment} data={props.data} />
+            <CountLike like={props.like} id_comment={props.id_comment} data={props.data} comment={props.comment} />
             <CountDislike />
             <Feedback />
         </div>
@@ -279,30 +299,38 @@ const CountLike= (props)=> {
     const { tokenId }= useContext(MyContext)
 
     const [LikeCommentAction]= useMutation(LikeCommentGraph)
+    const [UndoLikeCommentAction]= useMutation(UndoLikeComment)
+    useEffect(()=> {
+        if((props.data.user.comment_liked.split(",").includes(props.id_comment))=== true) {
+            setState(prev=> ({...prev, toggle: true}))
+        }
+        else { 
+            setState(prev=> ({...prev, toggle: false}))
+        }
+    }, [props.data.user.comment_liked, props.id_comment])
     return (
         <div className="count-like">
-            <button className="btn-count-like" onClick={()=> LikeComment(setState, state.like, state.toggle, LikeCommentAction, tokenId, props.id_comment)}>
+            <button className="btn-count-like" onClick={()=> LikeComment(setState, state.like, state.toggle, LikeCommentAction, tokenId, props.id_comment, UndoLikeCommentAction, props.comment)}>
                 {
-                    (((props.data.user.comment_liked.substr(0,props.data.user.comment_liked.length - 2 ).split(" ")).includes(props.id_comment))=== true) ?
+                    (((props.data.user.comment_liked.split(",").includes(props.id_comment))=== true && state.toggle=== true) || state.toggle=== true) ?
 
                     <LikedIconComment /> : 
 
                 <LikeIconComment />
 
             }
-            
             </button>
             <NumberOfLike like={state.like} />
         </div>
     )
 }
-const NumberOfLike= (props)=> {
+const NumberOfLike= memo((props)=> {
     return (
         <div className="number-of-like">
             {props.like}
         </div>
     )
-}
+})
 const NumberOfDislike= ()=> {
     return (
         <div className="number-of-dislike">
@@ -332,9 +360,9 @@ const Feedback= ()=> {
 const LikeIconComment= ()=> (
     <svg viewBox="0 0 16 16" preserveAspectRatio="xMidYMid meet" focusable="false" className="style-scope yt-icon" style={{pointerEvents: "none", display: "block", width: "100%", height: "100%"}}><g className="style-scope yt-icon"><path d="M12.42,14A1.54,1.54,0,0,0,14,12.87l1-4.24C15.12,7.76,15,7,14,7H10l1.48-3.54A1.17,1.17,0,0,0,10.24,2a1.49,1.49,0,0,0-1.08.46L5,7H1v7ZM9.89,3.14A.48.48,0,0,1,10.24,3a.29.29,0,0,1,.23.09S9,6.61,9,6.61L8.46,8H14c0,.08-1,4.65-1,4.65a.58.58,0,0,1-.58.35H6V7.39ZM2,8H5v5H2Z" className="style-scope yt-icon"></path></g></svg>
 )
-const LikedIconComment= ()=> (
+const LikedIconComment= memo(()=> (
     <svg viewBox="0 0 16 16" preserveAspectRatio="xMidYMid meet" focusable="false" className="style-scope yt-icon" style={{pointerEvents: "none", display: "block", width: "100%", height: "100%"}}><g className="style-scope yt-icon"><path d="M12.42,14A1.54,1.54,0,0,0,14,12.87l1-4.24C15.12,7.76,15,7,14,7H10l1.48-3.54A1.17,1.17,0,0,0,10.24,2a1.49,1.49,0,0,0-1.08.46L5,7l0,7ZM4,14H1V7H4Z" className="style-scope yt-icon"></path></g></svg>
-)
+))
 const DislikedIconComment= ()=> (
     <svg viewBox="0 0 16 16" preserveAspectRatio="xMidYMid meet" focusable="false" className="style-scope yt-icon" style={{pointerEvents: "none", display: "block", width: "100%", height: "100%"}}><g className="style-scope yt-icon"><path d="M3.54,2A1.55,1.55,0,0,0,2,3.13L1,7.37C.83,8.24,1,9,2,9H6L4.52,12.54A1.17,1.17,0,0,0,5.71,14a1.49,1.49,0,0,0,1.09-.46L11,9l0-7ZM12,2h3V9H12Z" className="style-scope yt-icon"></path></g></svg>
 )
